@@ -5,8 +5,8 @@ on:
     branches:
       - main
     paths:
-      - "archinfra/**"
-      - ".github/workflows/archinfra-release.yml"
+      - "archinfra/releases/v1.36.4-r1.env"
+      - "archinfra/scripts/**"
   workflow_dispatch:
     inputs:
       component:

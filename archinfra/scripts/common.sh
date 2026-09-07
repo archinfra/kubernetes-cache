@@ -26,7 +26,7 @@ if [[ "$ARCH" != "amd64" ]]; then
 fi
 
 log() {
-  printf '[archinfra-cache] %s\n' "$*"
+  printf '[archinfra-cache] %s\n' "$*" >&2
 }
 
 require_cmd() {
@@ -155,10 +155,7 @@ oci_build_push() {
   for tag in "${tags[@]}"; do
     local image="$REGISTRY/$REPOSITORY:$tag"
     local digest
-    digest="$(docker buildx imagetools inspect "$image" --format '{{json .Manifest}}' 2>/dev/null | sed -n 's/.*"digest":"\([^"]*\)".*/\1/p' | head -n1 || true)"
-    if [[ -z "$digest" ]]; then
-      digest="$(docker buildx imagetools inspect "$image" 2>/dev/null | awk '/^Digest:/ {print $2; exit}' || true)"
-    fi
+    digest="$(docker buildx imagetools inspect "$image" 2>/dev/null | awk '/^Digest:/ {print $2; exit}' || true)"
     provenance_add "$component" "image.digest.${tag}" "${digest:-unknown}"
   done
 }

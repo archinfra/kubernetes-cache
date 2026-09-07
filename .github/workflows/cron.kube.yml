@@ -32,8 +32,6 @@ jobs:
         run: bash .github/scripts/kube
     strategy:
       matrix: ${{ fromJson(needs.CHANGELOG.outputs.matrix) }}
-name: kube
+name: kube-upstream-reference
 on:
-  schedule:
-    - cron: "* */8 * * *"
   workflow_dispatch:

@@ -26,9 +26,10 @@ chmod +x "$context/sealos/sealos" "$context/sealos/sealctl" "$context/sealos/ima
 
 "$context/sealos/sealos" version | tee "$OUT_DIR/sealos.version.txt"
 provenance_add "$component" version "$SEALOS_VERSION"
+provenance_add "$component" cache_base_image "$SEALOS_CACHE_BASE_IMAGE"
 
-cat > "$context/Dockerfile" <<'EOF'
-FROM alpine:3.22.2
+cat > "$context/Dockerfile" <<EOF
+FROM $SEALOS_CACHE_BASE_IMAGE
 COPY sealos /sealos
 EOF
 

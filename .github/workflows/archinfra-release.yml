@@ -1,6 +1,12 @@
 name: Archinfra Kubernetes Cache Release
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "archinfra/**"
+      - ".github/workflows/archinfra-release.yml"
   workflow_dispatch:
     inputs:
       component:
@@ -48,7 +54,7 @@ jobs:
           cat archinfra/releases/v1.36.4-r1.env
 
   sealos:
-    if: ${{ inputs.component == 'all' || inputs.component == 'sealos' }}
+    if: ${{ github.event_name == 'push' || inputs.component == 'all' || inputs.component == 'sealos' }}
     needs: validate
     runs-on: ubuntu-24.04
     steps:
@@ -77,7 +83,7 @@ jobs:
           if-no-files-found: warn
 
   docker:
-    if: ${{ inputs.component == 'all' || inputs.component == 'docker' }}
+    if: ${{ github.event_name == 'push' || inputs.component == 'all' || inputs.component == 'docker' }}
     needs: validate
     runs-on: ubuntu-24.04
     steps:
@@ -111,7 +117,7 @@ jobs:
           if-no-files-found: warn
 
   crictl:
-    if: ${{ inputs.component == 'all' || inputs.component == 'crictl' }}
+    if: ${{ github.event_name == 'push' || inputs.component == 'all' || inputs.component == 'crictl' }}
     needs: validate
     runs-on: ubuntu-24.04
     steps:
@@ -140,7 +146,7 @@ jobs:
           if-no-files-found: warn
 
   kubernetes:
-    if: ${{ inputs.component == 'all' || inputs.component == 'kubernetes' }}
+    if: ${{ github.event_name == 'push' || inputs.component == 'all' || inputs.component == 'kubernetes' }}
     needs: validate
     runs-on: ubuntu-24.04
     steps:

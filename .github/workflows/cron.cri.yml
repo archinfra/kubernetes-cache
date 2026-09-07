@@ -21,8 +21,6 @@ jobs:
         arch:
           - amd64
           - arm64
-name: cri
+name: cri-upstream-reference
 on:
-  schedule:
-    - cron: "* */8 * * *"
   workflow_dispatch:

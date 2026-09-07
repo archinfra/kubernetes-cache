@@ -15,7 +15,8 @@ source "$RELEASE_FILE"
 REGISTRY="${REGISTRY:-ghcr.io}"
 REPOSITORY="${REPOSITORY:-archinfra/kubernetes-cache}"
 OUT_DIR="${OUT_DIR:-$ARCHINFRA_ROOT/out}"
-WORK_DIR="${WORK_DIR:-$RUNNER_TEMP/archinfra-kubernetes-cache}"
+RUNNER_TEMP_ROOT="${RUNNER_TEMP:-/tmp}"
+WORK_DIR="${WORK_DIR:-$RUNNER_TEMP_ROOT/archinfra-kubernetes-cache}"
 
 mkdir -p "$OUT_DIR" "$WORK_DIR"
 

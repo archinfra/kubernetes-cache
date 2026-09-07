@@ -20,8 +20,6 @@ jobs:
       matrix:
         arch:
           - amd64
-name: runtime
+name: runtime-upstream-reference
 on:
-  schedule:
-    - cron: "* */8 * * *"
   workflow_dispatch:

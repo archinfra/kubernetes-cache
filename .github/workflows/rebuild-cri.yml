@@ -1,0 +1,30 @@
+name: Rebuild CRI Cache
+
+on:
+  workflow_dispatch:
+    inputs:
+      module:
+        description: 'CRI module to rebuild'
+        required: false
+        default: 'cri-dockerd'
+      version:
+        description: 'Version'
+        required: false
+        default: '0.4.6'
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify cri-dockerd version
+        run: |
+          echo "Rebuild module=${{ inputs.module }} version=${{ inputs.version }}"
+          grep 'cri-dockerd' modules/modules.txt
+
+      - name: Build cache trigger
+        run: |
+          echo "Please use existing cache build pipeline for module rebuild"
+          echo "cri-dockerd=${{ inputs.version }}"

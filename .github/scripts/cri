@@ -14,6 +14,43 @@ checker_build="/tmp/checker.$(basename "$0")"
 source common
 checker_image
 
+# Version pinning via a release BOM. When --release (or $RELEASE) is set, the
+# version resolution below is skipped so the cache build is reproducible and
+# auditable (no "latest" drift). The canonical version set lives in
+# archinfra/releases/<release>.env.
+RELEASE="${RELEASE:-}"
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --release)
+      RELEASE="$2"
+      shift 2
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [[ -n "$RELEASE" ]]; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  RELEASE_FILE="$SCRIPT_DIR/../../archinfra/releases/$RELEASE.env"
+  if [[ ! -f "$RELEASE_FILE" ]]; then
+    echo "release BOM not found: $RELEASE_FILE" >&2
+    exit 1
+  fi
+  _BUILD_ARCH="$ARCH"
+  source "$RELEASE_FILE"
+  # The BOM is an amd64 canonical lock; keep the arch the invoking workflow set.
+  ARCH="$_BUILD_ARCH"
+  # Map the canonical release BOM names (_VERSION suffix) to the short names
+  # the packaging code below relies on.
+  CONTAINERD="${CONTAINERD_VERSION:-${CONTAINERD:-}}"
+  CRIDOCKER="${CRI_DOCKERD_VERSION:-${CRIDOCKER:-}}"
+  DOCKER="${DOCKER_VERSION:-${DOCKER:-}}"
+  DISTRIBUTION="${REGISTRY_VERSION:-${DISTRIBUTION:-}}"
+fi
+
 readonly -A REPOS=(
   [CONTAINERD]=containerd/containerd
   [CRIDOCKER]=Mirantis/cri-dockerd
@@ -21,18 +58,24 @@ readonly -A REPOS=(
   [DISTRIBUTION]=distribution/distribution
 )
 for name in ${!REPOS[*]}; do
-  export "$name"="$(
-    for tag in $(git ls-remote --refs --sort="-version:refname" --tags "https://github.com/${REPOS[$name]}.git" | cut -d/ -f3- | grep -E "^v[0-9.]+$" | head -n 3); do
-      if curl -sL "https://github.com/${REPOS[$name]}/releases/tag/$tag" | grep '="repo_releases"' >/dev/null; then
-        cut -dv -f2 <<<"$tag"
-        break
-      fi
-    done
-  )"
+  if [[ -z "${!name}" ]]; then
+    export "$name"="$(
+      for tag in $(git ls-remote --refs --sort="-version:refname" --tags "https://github.com/${REPOS[$name]}.git" | cut -d/ -f3- | grep -E "^v[0-9.]+$" | head -n 3); do
+        if curl -sL "https://github.com/${REPOS[$name]}/releases/tag/$tag" | grep '="repo_releases"' >/dev/null; then
+          cut -dv -f2 <<<"$tag"
+          break
+        fi
+      done
+    )"
+  fi
 done
 
-CONTAINERD=$(git ls-remote --refs --sort="-version:refname" --tags "https://github.com/${REPOS[CONTAINERD]}.git" | cut -d/ -f3- | grep -E "^v1.7[0-9.]+$" | head -n 1 | cut -dv -f2)
-DOCKER=$(git ls-remote --refs --sort="-version:refname" --tags "https://github.com/${REPOS[DOCKER]}.git" | cut -d/ -f3- | grep -E "^v28[0-9.]+$" | head -n 1 | cut -dv -f2)
+if [[ -z "$CONTAINERD" ]]; then
+  CONTAINERD=$(git ls-remote --refs --sort="-version:refname" --tags "https://github.com/${REPOS[CONTAINERD]}.git" | cut -d/ -f3- | grep -E "^v1.7[0-9.]+$" | head -n 1 | cut -dv -f2)
+fi
+if [[ -z "$DOCKER" ]]; then
+  DOCKER=$(git ls-remote --refs --sort="-version:refname" --tags "https://github.com/${REPOS[DOCKER]}.git" | cut -d/ -f3- | grep -E "^v28[0-9.]+$" | head -n 1 | cut -dv -f2)
+fi
 
 get_pkg() {
   local target=${1?Please input target} filename=${1##*/} obj_path crun_tag
@@ -66,7 +109,7 @@ get_pkg() {
   popd >/dev/null
 }
 
-image_tag="cri-$ARCH"
+image_tag="cri-$ARCH${RELEASE:+-$RELEASE}"
 pushd "$(mktemp -d)" >/dev/null
 get_pkg "$PWD/cri-containerd.tar.gz"
 get_pkg "$PWD/cri-dockerd.tgz"

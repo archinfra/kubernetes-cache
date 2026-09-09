@@ -2,6 +2,11 @@ name: cri-upstream-reference
 
 on:
   workflow_dispatch:
+    inputs:
+      release:
+        description: 'Release BOM to pin (archinfra/releases/<release>.env). Leave empty to keep upstream "latest".'
+        required: false
+        default: 'v1.36.4-r2'
 
 permissions:
   contents: read
@@ -31,4 +36,4 @@ jobs:
           ARCH: ${{ matrix.arch }}
           REGISTRY: ghcr.io
           REPOSITORY: ${{ github.repository }}
-        run: bash .github/scripts/cri
+        run: bash .github/scripts/cri --release "${{ inputs.release }}"

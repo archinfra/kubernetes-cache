@@ -6,18 +6,54 @@ checker_build="/tmp/checker.$(basename "$0")"
 source common
 checker_image
 
+# Version pinning via the release BOM (same contract as scripts/cri). When
+# --release (or $RELEASE) is set, the upstream resolution is skipped so the cache
+# build is reproducible and auditable (no "latest" drift). Pinning runc is
+# required: recent runc sources no longer build /opt/libseccomp, which breaks
+# the libseccomp tarball step below.
+RELEASE="${RELEASE:-}"
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --release)
+      RELEASE="$2"
+      shift 2
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [[ -n "$RELEASE" ]]; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  RELEASE_FILE="$SCRIPT_DIR/../../archinfra/releases/$RELEASE.env"
+  if [[ ! -f "$RELEASE_FILE" ]]; then
+    echo "release BOM not found: $RELEASE_FILE" >&2
+    exit 1
+  fi
+  _BUILD_ARCH="$ARCH"
+  source "$RELEASE_FILE"
+  # The BOM is an amd64 canonical lock; keep the arch the invoking workflow set.
+  ARCH="$_BUILD_ARCH"
+  # Map the canonical release BOM names to the short names used below.
+  RUNC="${RUNC_VERSION:-${RUNC:-}}"
+fi
+
 readonly -A REPOS=(
   [RUNC]=opencontainers/runc
 )
 for name in ${!REPOS[*]}; do
-  export "$name"="$(
-    for tag in $(git ls-remote --refs --sort="-version:refname" --tags "https://github.com/${REPOS[$name]}.git" | cut -d/ -f3- | grep -E "^v[0-9.]+$" | head -n 3); do
-      if curl -sL "https://github.com/${REPOS[$name]}/releases/tag/$tag" | grep '="repo_releases"' >/dev/null; then
-        cut -dv -f2 <<<"$tag"
-        break
-      fi
-    done
-  )"
+  if [[ -z "${!name}" ]]; then
+    export "$name"="$(
+      for tag in $(git ls-remote --refs --sort="-version:refname" --tags "https://github.com/${REPOS[$name]}.git" | cut -d/ -f3- | grep -E "^v[0-9.]+$" | head -n 3); do
+        if curl -sL "https://github.com/${REPOS[$name]}/releases/tag/$tag" | grep '="repo_releases"' >/dev/null; then
+          cut -dv -f2 <<<"$tag"
+          break
+        fi
+      done
+    )"
+  fi
 done
 
 image_tag="runtime"

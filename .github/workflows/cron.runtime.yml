@@ -15,7 +15,7 @@ jobs:
           REGISTRY: ghcr.io
           REPOSITORY: ${{ github.repository }}
         name: push to registry Hub
-        run: bash .github/scripts/runtime
+        run: bash .github/scripts/runtime --release "${{ inputs.release }}"
     strategy:
       matrix:
         arch:
@@ -23,3 +23,8 @@ jobs:
 name: runtime-upstream-reference
 on:
   workflow_dispatch:
+    inputs:
+      release:
+        description: 'Release BOM to pin (archinfra/releases/<release>.env). Leave empty to keep upstream "latest".'
+        required: false
+        default: 'v1.36.4-r2'

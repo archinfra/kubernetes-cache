@@ -61,6 +61,10 @@ jobs:
     if: ${{ github.event_name == 'push' || inputs.component == 'all' || inputs.component == 'sealos' }}
     needs: validate
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -76,6 +80,8 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Sealos cache
+        env:
+          ARCH: ${{ matrix.arch }}
         run: bash archinfra/scripts/build-sealos.sh
 
       - name: Upload provenance
@@ -130,6 +136,10 @@ jobs:
     if: ${{ github.event_name == 'push' || inputs.component == 'all' || inputs.component == 'crictl' }}
     needs: validate
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -145,6 +155,8 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build crictl cache
+        env:
+          ARCH: ${{ matrix.arch }}
         run: bash archinfra/scripts/build-crictl.sh
 
       - name: Upload provenance

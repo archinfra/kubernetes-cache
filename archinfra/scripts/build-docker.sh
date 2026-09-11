@@ -67,19 +67,27 @@ record_file "$component" "legacy-lsof" "$LSOF_URL" "$cri/lsof"
 provenance_add "$component" "artifact.legacy-lsof.status" "inherited-unversioned"
 
 # Inspect the exact Docker-owned runtime BOM that will land on target nodes.
+# The build runner is x86_64, so execution-based version probes only work for
+# amd64 bundles. For arm64 the bundle is pinned by the tarball digest recorded
+# in provenance; execution is skipped (arm64 binaries cannot run on x86_64).
 tar -xzf "$cri/docker.tgz" -C "$work/inspect"
-for binary in docker dockerd containerd runc; do
-  if [[ -x "$work/inspect/docker/$binary" ]]; then
-    version="$($work/inspect/docker/$binary --version 2>&1 | head -n1 || true)"
-    provenance_add "$component" "bundled.${binary}.version_output" "$version"
-    printf '%s=%s\n' "$binary" "$version" >> "$OUT_DIR/docker-bundled-bom.txt"
-  fi
-done
+if [[ "$ARCH" == "amd64" ]]; then
+  for binary in docker dockerd containerd runc; do
+    if [[ -x "$work/inspect/docker/$binary" ]]; then
+      version="$($work/inspect/docker/$binary --version 2>&1 | head -n1 || true)"
+      provenance_add "$component" "bundled.${binary}.version_output" "$version"
+      printf '%s=%s\n' "$binary" "$version" >> "$OUT_DIR/docker-bundled-bom.txt"
+    fi
+  done
 
-if ! "$work/inspect/docker/runc" --version 2>&1 | grep -F "$DOCKER_BUNDLED_RUNC_VERSION" >/dev/null; then
-  echo "ERROR: Docker bundle does not contain expected runc $DOCKER_BUNDLED_RUNC_VERSION" >&2
-  "$work/inspect/docker/runc" --version >&2 || true
-  exit 1
+  if ! "$work/inspect/docker/runc" --version 2>&1 | grep -F "$DOCKER_BUNDLED_RUNC_VERSION" >/dev/null; then
+    echo "ERROR: Docker bundle does not contain expected runc $DOCKER_BUNDLED_RUNC_VERSION" >&2
+    "$work/inspect/docker/runc" --version >&2 || true
+    exit 1
+  fi
+else
+  provenance_add "$component" "bundled.runc.arch" "$ARCH"
+  provenance_add "$component" "bundled.version_probes" "skipped (x86_64 runner cannot execute $ARCH binaries)"
 fi
 
 provenance_add "$component" docker_version "$DOCKER_VERSION"

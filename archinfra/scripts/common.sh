@@ -9,8 +9,11 @@ if [[ ! -f "$RELEASE_FILE" ]]; then
   exit 1
 fi
 
+# Keep the arch the invoking job set (the BOM records the canonical amd64 value).
+_ARCH="${ARCH:-}"
 # shellcheck disable=SC1090
 source "$RELEASE_FILE"
+if [[ -n "$_ARCH" ]]; then ARCH="$_ARCH"; fi
 
 REGISTRY="${REGISTRY:-ghcr.io}"
 REPOSITORY="${REPOSITORY:-archinfra/kubernetes-cache}"
@@ -20,10 +23,8 @@ WORK_DIR="${WORK_DIR:-$RUNNER_TEMP_ROOT/archinfra-kubernetes-cache}"
 
 mkdir -p "$OUT_DIR" "$WORK_DIR"
 
-if [[ "$ARCH" != "amd64" ]]; then
-  echo "ERROR: release $RELEASE_VERSION currently supports amd64 only (got: $ARCH)" >&2
-  exit 1
-fi
+# Multi-arch: cache build scripts select per-arch URLs/digests from the BOM
+# (_AMD64/_ARM64 variants). No amd64-only restriction here.
 
 log() {
   printf '[archinfra-cache] %s\n' "$*" >&2

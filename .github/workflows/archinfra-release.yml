@@ -90,6 +90,10 @@ jobs:
     if: ${{ github.event_name == 'push' || inputs.component == 'all' || inputs.component == 'docker' }}
     needs: validate
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -110,6 +114,8 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Docker runtime cache
+        env:
+          ARCH: ${{ matrix.arch }}
         run: bash archinfra/scripts/build-docker.sh
 
       - name: Upload provenance

@@ -5,6 +5,22 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=common.sh
 source "$SCRIPT_DIR/common.sh"
 
+# Select per-arch upstream URL/SHA/tag. The release lock is canonical for amd64;
+# ARM64 variants (present in the lock as *_ARM64) are used when ARCH=arm64.
+case "${ARCH:-amd64}" in
+  arm64)
+    DOCKER_URL="${DOCKER_URL_ARM64}"
+    DOCKER_SHA256="${DOCKER_SHA256_ARM64}"
+    CRI_DOCKERD_URL="${CRI_DOCKERD_URL_ARM64}"
+    CRI_DOCKERD_SHA256="${CRI_DOCKERD_SHA256_ARM64}"
+    REGISTRY_URL="${REGISTRY_URL_ARM64}"
+    REGISTRY_SHA256="${REGISTRY_SHA256_ARM64}"
+    CONNTRACK_URL="${CONNTRACK_URL_ARM64}"
+    LSOF_URL="${LSOF_URL_ARM64}"
+    DOCKER_CACHE_TAG="${DOCKER_CACHE_TAG_ARM64}"
+    ;;
+esac
+
 component=docker-runtime
 work="$WORK_DIR/$component"
 context="$work/context"

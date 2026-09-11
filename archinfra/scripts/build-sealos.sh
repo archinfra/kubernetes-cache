@@ -10,6 +10,15 @@ work="$WORK_DIR/$component"
 context="$work/context"
 archive="$work/sealos_${SEALOS_VERSION}_linux_${ARCH}.tar.gz"
 
+# Select per-arch upstream URL/SHA (release lock is canonical amd64; *_ARM64 variants used when ARCH=arm64).
+case "${ARCH:-amd64}" in
+  arm64)
+    SEALOS_URL="${SEALOS_URL_ARM64}"
+    SEALOS_SHA256="${SEALOS_SHA256_ARM64}"
+    SEALOS_CACHE_TAG="${SEALOS_CACHE_TAG_ARM64}"
+    ;;
+esac
+
 rm -rf "$work"
 mkdir -p "$context/sealos"
 provenance_begin "$component"
@@ -24,7 +33,10 @@ record_file "$component" "sealos-${SEALOS_VERSION}" "$SEALOS_URL" "$archive"
 tar -xzf "$archive" -C "$context/sealos"
 chmod +x "$context/sealos/sealos" "$context/sealos/sealctl" "$context/sealos/image-cri-shim" 2>/dev/null || true
 
-"$context/sealos/sealos" version | tee "$OUT_DIR/sealos.version.txt"
+if [[ "$ARCH" == "amd64" ]]; then
+  "$context/sealos/sealos" version | tee "$OUT_DIR/sealos.version.txt"
+fi
+# arm64 sealos binary cannot run on the x86_64 runner; the archive is pinned by sha256.
 provenance_add "$component" version "$SEALOS_VERSION"
 provenance_add "$component" cache_base_image "$SEALOS_CACHE_BASE_IMAGE"
 

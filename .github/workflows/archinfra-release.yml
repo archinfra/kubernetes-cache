@@ -5,8 +5,9 @@ on:
     branches:
       - main
     paths:
-      - "archinfra/releases/v1.36.4-r1.env"
+      - "archinfra/releases/v1.36.4-r2.env"
       - "archinfra/scripts/**"
+      - ".github/workflows/archinfra-release.yml"
   workflow_dispatch:
     inputs:
       component:
@@ -31,13 +32,13 @@ permissions:
   id-token: write
 
 concurrency:
-  group: archinfra-kubernetes-cache-${{ github.event_name == 'push' && 'v1.36.4-r1' || inputs.release }}
+  group: archinfra-kubernetes-cache-${{ github.event_name == 'push' && 'v1.36.4-r2' || inputs.release }}
   cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io
   REPOSITORY: ${{ github.repository }}
-  RELEASE_FILE: ${{ github.workspace }}/archinfra/releases/${{ github.event_name == 'push' && 'v1.36.4-r1' || inputs.release }}.env
+  RELEASE_FILE: ${{ github.workspace }}/archinfra/releases/${{ github.event_name == 'push' && 'v1.36.4-r2' || inputs.release }}.env
 
 jobs:
   validate:
@@ -55,7 +56,7 @@ jobs:
           bash -n archinfra/scripts/build-docker.sh
           bash -n archinfra/scripts/build-crictl.sh
           bash -n archinfra/scripts/build-kubernetes.sh
-          cat archinfra/releases/${{ github.event_name == 'push' && 'v1.36.4-r1' || inputs.release }}.env
+          cat archinfra/releases/${{ github.event_name == 'push' && 'v1.36.4-r2' || inputs.release }}.env
 
   sealos:
     if: ${{ github.event_name == 'push' || inputs.component == 'all' || inputs.component == 'sealos' }}
@@ -88,7 +89,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cache-sealos-provenance
+          name: cache-sealos-${{ matrix.arch }}-provenance
           path: out/
           if-no-files-found: warn
 

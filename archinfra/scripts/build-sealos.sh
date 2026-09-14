@@ -24,7 +24,7 @@ mkdir -p "$context/sealos"
 provenance_begin "$component"
 write_release_summary
 
-require_cmd curl sha256sum tar docker
+require_cmd curl sha256sum tar docker file grep
 
 download "$SEALOS_URL" "$archive"
 verify_sha256 "$SEALOS_SHA256" "$archive"
@@ -35,16 +35,47 @@ chmod +x "$context/sealos/sealos" "$context/sealos/sealctl" "$context/sealos/ima
 
 if [[ "$ARCH" == "amd64" ]]; then
   "$context/sealos/sealos" version | tee "$OUT_DIR/sealos.version.txt"
+else
+  # Do not execute arm64 binaries on the x86_64 GitHub runner. Verify the
+  # extracted payload architecture instead so a mislabeled archive fails fast.
+  for binary in sealos sealctl image-cri-shim; do
+    if [[ -f "$context/sealos/$binary" ]]; then
+      desc="$(file "$context/sealos/$binary")"
+      printf '%s\n' "$desc" | tee -a "$OUT_DIR/sealos.arch.txt"
+      printf '%s\n' "$desc" | grep -Eiq 'ARM aarch64|ARM64|aarch64' || {
+        echo "ERROR: expected arm64 binary: $context/sealos/$binary" >&2
+        exit 1
+      }
+    fi
+  done
 fi
-# arm64 sealos binary cannot run on the x86_64 runner; the archive is pinned by sha256.
-provenance_add "$component" version "$SEALOS_VERSION"
-provenance_add "$component" cache_base_image "$SEALOS_CACHE_BASE_IMAGE"
 
-cat > "$context/Dockerfile" <<EOF
-FROM $SEALOS_CACHE_BASE_IMAGE
+provenance_add "$component" version "$SEALOS_VERSION"
+provenance_add "$component" cache_base_image "scratch"
+
+# This cache is only an artifact carrier for Sealos binaries. A runtime base
+# image is unnecessary and, when pinned to an amd64-only Alpine manifest,
+# corrupts the platform metadata of the arm64 cache image. Keep the cache
+# platform-neutral at the filesystem layer and let buildx stamp linux/$ARCH.
+cat > "$context/Dockerfile" <<'EOF'
+FROM scratch
 COPY sealos /sealos
 EOF
 
 oci_build_push "$component" "$context" "$context/Dockerfile" "$SEALOS_CACHE_TAG"
 
-log "done: $REGISTRY/$REPOSITORY:$SEALOS_CACHE_TAG"
+image="$REGISTRY/$REPOSITORY:$SEALOS_CACHE_TAG"
+inspect_out="$OUT_DIR/sealos.imagetools.txt"
+docker buildx imagetools inspect "$image" | tee "$inspect_out"
+
+# buildx with provenance/SBOM produces an OCI index containing the target image
+# plus attestation entries. Require the real target platform to be present.
+if ! grep -Eq "Platform:[[:space:]]+linux/${ARCH}([[:space:]]|$)" "$inspect_out"; then
+  echo "ERROR: published Sealos cache does not contain linux/$ARCH" >&2
+  echo "  image: $image" >&2
+  exit 1
+fi
+
+provenance_add "$component" verified_platform "linux/$ARCH"
+log "verified platform: $image -> linux/$ARCH"
+log "done: $image"

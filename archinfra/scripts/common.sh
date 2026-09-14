@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 ARCHINFRA_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-RELEASE_FILE="${RELEASE_FILE:-$ARCHINFRA_ROOT/archinfra/releases/v1.36.4-r1.env}"
+RELEASE_FILE="${RELEASE_FILE:-$ARCHINFRA_ROOT/archinfra/releases/v1.36.4-r2.env}"
 
 if [[ ! -f "$RELEASE_FILE" ]]; then
   echo "ERROR: release file not found: $RELEASE_FILE" >&2
@@ -22,9 +22,6 @@ RUNNER_TEMP_ROOT="${RUNNER_TEMP:-/tmp}"
 WORK_DIR="${WORK_DIR:-$RUNNER_TEMP_ROOT/archinfra-kubernetes-cache}"
 
 mkdir -p "$OUT_DIR" "$WORK_DIR"
-
-# Multi-arch: cache build scripts select per-arch URLs/digests from the BOM
-# (_AMD64/_ARM64 variants). No amd64-only restriction here.
 
 log() {
   printf '[archinfra-cache] %s\n' "$*" >&2
@@ -117,6 +114,11 @@ record_file() {
   provenance_add "$component" "artifact.${name}.bytes" "$(stat -c '%s' "$file")"
 }
 
+oci_image_digest() {
+  local image="$1"
+  docker buildx imagetools inspect "$image" 2>/dev/null | awk '/^Digest:/ {print $2; exit}' || true
+}
+
 oci_build_push() {
   local component="$1"
   local context="$2"
@@ -124,7 +126,8 @@ oci_build_push() {
   shift 3
   local tags=("$@")
   local tag_args=()
-  local tag
+  local tag image digest
+  local existing=0
 
   require_cmd docker
   if [[ ${#tags[@]} -eq 0 ]]; then
@@ -132,11 +135,31 @@ oci_build_push() {
     exit 1
   fi
 
+  # Release cache tags are immutable. If every requested tag already exists,
+  # reuse the published digest and do not push again. If only part of a tag set
+  # exists, fail closed rather than creating a mixed release.
   for tag in "${tags[@]}"; do
-    tag_args+=(--tag "$REGISTRY/$REPOSITORY:$tag")
-    provenance_add "$component" "image.tag" "$REGISTRY/$REPOSITORY:$tag"
+    image="$REGISTRY/$REPOSITORY:$tag"
+    tag_args+=(--tag "$image")
+    provenance_add "$component" "image.tag" "$image"
+    digest="$(oci_image_digest "$image")"
+    if [[ "$digest" == sha256:* ]]; then
+      existing=$((existing + 1))
+      provenance_add "$component" "image.digest.${tag}" "$digest"
+      log "immutable tag exists; reuse: $image@$digest"
+    fi
   done
 
+  if (( existing > 0 )); then
+    if (( existing != ${#tags[@]} )); then
+      echo "ERROR: partial immutable tag set already exists for component=$component" >&2
+      exit 1
+    fi
+    provenance_add "$component" "image.publish_mode" "reuse-existing"
+    return 0
+  fi
+
+  provenance_add "$component" "image.publish_mode" "publish-new"
   log "build/push component=$component tags=${tags[*]}"
   docker buildx build \
     --platform "linux/$ARCH" \
@@ -154,10 +177,14 @@ oci_build_push() {
     "$context"
 
   for tag in "${tags[@]}"; do
-    local image="$REGISTRY/$REPOSITORY:$tag"
-    local digest
-    digest="$(docker buildx imagetools inspect "$image" 2>/dev/null | awk '/^Digest:/ {print $2; exit}' || true)"
-    provenance_add "$component" "image.digest.${tag}" "${digest:-unknown}"
+    image="$REGISTRY/$REPOSITORY:$tag"
+    digest="$(oci_image_digest "$image")"
+    if [[ "$digest" != sha256:* ]]; then
+      echo "ERROR: published image has no registry digest: $image" >&2
+      exit 1
+    fi
+    provenance_add "$component" "image.digest.${tag}" "$digest"
+    log "published immutable tag: $image@$digest"
   done
 }
 

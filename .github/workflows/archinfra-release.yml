@@ -171,6 +171,10 @@ jobs:
     if: ${{ github.event_name == 'push' || inputs.component == 'all' || inputs.component == 'kubernetes' }}
     needs: validate
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -182,7 +186,10 @@ jobs:
             buildah \
             skopeo \
             uidmap \
-            fuse-overlayfs
+            fuse-overlayfs \
+            qemu-user-static
+          # enable cross-arch (arm64) emulation for sealos --platform linux/arm64 image materialization
+          sudo docker run --privileged --rm tonistiigi/binfmt --install all || true
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -195,6 +202,8 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Kubernetes cache
+        env:
+          ARCH: ${{ matrix.arch }}
         run: bash archinfra/scripts/build-kubernetes.sh
 
       - name: Upload provenance
